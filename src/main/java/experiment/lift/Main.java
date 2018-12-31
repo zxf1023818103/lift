@@ -1,7 +1,8 @@
 package experiment.lift;
 
 import java.io.FileInputStream;
-import java.io.InputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,44 +10,51 @@ import java.util.Scanner;
 
 public class Main {
 
-    /**
-     * 输入流
-     */
-    private static InputStream inputStream = System.in;
+    public static void main(String[] args) throws FileNotFoundException {
 
-    /**
-     * 输出流
-     */
-    private static PrintStream outputStream = System.out;
+        Scanner stdinScanner = new Scanner(System.in);
 
-    private static RequestReader requestReader = new RequestReader(new Scanner(inputStream));
+        System.out.print("请输入输入文件名：");
 
-    private static List<Floor> floors = new ArrayList<>();
+        String inputFile = stdinScanner.nextLine();
 
-    private static RequestQueue requestQueue = new RequestQueue();
+        Scanner inputScanner = new Scanner(new FileInputStream(inputFile));
 
-    static {
-        for (int i = 1; i <= 10; i++)
-            floors.add(new Floor(i, requestQueue));
-    }
-    private static Lift lift = new Lift(floors);
+        System.out.print("请输入输出文件名：");
 
-    private static Scheduler scheduler = new Scheduler(lift, requestQueue);
+        String outputFile = stdinScanner.nextLine();
 
-    public static void main(String... args) {
-        System.out.print("Input filename: ");
-        try {
-            inputStream = new FileInputStream(new Scanner(System.in).nextLine());
-            requestReader = new RequestReader(new Scanner(inputStream));
-            while (requestReader.hasNext()) {
-                Request request = requestReader.next();
-                requestQueue.offer(request);
+        PrintStream output = new PrintStream(new FileOutputStream(outputFile));
+
+        List<Request> requests = new ArrayList<>();
+
+        while (inputScanner.hasNextLine()) {
+            String line = inputScanner.nextLine();
+            if (line.contains("RUN"))
+                break;
+            String[] results = line.replace("(", "").replace(")", "").split(",");
+            if (line.matches("\\s*\\(\\s*FR\\s*,\\s*\\d+\\s*,\\s*(UP|DOWN)\\s*,\\s*\\d+\\s*\\)\\s*")) {
+                requests.add(new FloorRequest(Integer.parseInt(results[1]), RequestDirection.valueOf(results[2]), Integer.parseInt(results[3])));
             }
-            scheduler.start();
-        } catch (Exception e) {
-            System.out.println("ERROR");
-            System.out.println("# " + e.getMessage());
+            else if (line.matches("\\s*\\(\\s*ER\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*\\)\\s*")) {
+                requests.add(new LiftRequest(Integer.parseInt(results[1]), Integer.parseInt(results[2])));
+            }
+            else {
+                output.println("INVALID[" + line + "]");
+            }
         }
+
+        Scheduler scheduler = new Scheduler(requests, output);
+
+        Lift lift = new Lift(11, scheduler, output);
+
+        scheduler.setLift(lift);
+
+        while (true) {
+            if (!lift.update())
+                break;
+        }
+
     }
 
 }

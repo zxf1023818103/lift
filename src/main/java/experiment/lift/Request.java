@@ -1,69 +1,50 @@
 package experiment.lift;
 
-/**
- * 请求
- */
-public class Request {
+public abstract class Request {
 
-    private RequestType type;
+    private int sendingSeconds;
 
-    private int requestSeconds;
+    private int floor;
 
-    private int fromFloor;
-
-    private int toFloor;
-
-    private FloorRequestDirection direction;
-
-    @java.beans.ConstructorProperties({"type", "requestSeconds", "fromFloor", "toFloor", "direction"})
-    public Request(RequestType type, int requestSeconds, int fromFloor, int toFloor, FloorRequestDirection direction) {
-        this.type = type;
-        this.requestSeconds = requestSeconds;
-        this.fromFloor = fromFloor;
-        this.toFloor = toFloor;
-        this.direction = direction;
+    public int getSendSeconds() {
+        return sendingSeconds;
     }
 
-    public Request() {
+    public void setSendSeconds(int sendingSeconds) {
+        this.sendingSeconds = sendingSeconds;
     }
 
-    public RequestType getType() {
-        return this.type;
+    public int getFloor() {
+        return floor;
     }
 
-    public int getRequestSeconds() {
-        return this.requestSeconds;
+    public void setFloor(int floor) {
+        this.floor = floor;
     }
 
-    public int getFromFloor() {
-        return this.fromFloor;
+    public LiftState getLiftStateByCurrentFloor(int currentFloor) {
+        if (this instanceof FloorRequest) {
+            switch (((FloorRequest) this).getDirection()) {
+                case UP:
+                    return LiftState.UP;
+                case DOWN:
+                    return LiftState.DOWN;
+            }
+        }
+        if (floor > currentFloor)
+            return LiftState.UP;
+        else if (floor < currentFloor)
+            return LiftState.DOWN;
+        else
+            return LiftState.STILL;
     }
 
-    public int getToFloor() {
-        return this.toFloor;
-    }
-
-    public FloorRequestDirection getDirection() {
-        return this.direction;
-    }
-
-    public void setType(RequestType type) {
-        this.type = type;
-    }
-
-    public void setRequestSeconds(int requestSeconds) {
-        this.requestSeconds = requestSeconds;
-    }
-
-    public void setFromFloor(int fromFloor) {
-        this.fromFloor = fromFloor;
-    }
-
-    public void setToFloor(int toFloor) {
-        this.toFloor = toFloor;
-    }
-
-    public void setDirection(FloorRequestDirection direction) {
-        this.direction = direction;
+    @Override
+    public String toString() {
+        if (this instanceof FloorRequest) {
+            return "(FR, " + floor + ", " + ((FloorRequest) this).getDirection() + ", " + sendingSeconds + ")";
+        }
+        else
+            return "(ER, " + floor + ", " + sendingSeconds + ")";
     }
 }

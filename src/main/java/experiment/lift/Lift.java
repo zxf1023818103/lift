@@ -1,70 +1,191 @@
 package experiment.lift;
 
 import java.io.PrintStream;
-import java.util.List;
 
-/**
- * 电梯
- */
 public class Lift {
 
-    private static final double OPEN_CLOSE_DOOR_SECONDS = 1;
-
-    private static final double RUNNING_SECOND_PER_FLOOR = 0.5;
+    /**
+     * 经过一个楼层的时间（秒）
+     */
+    protected final static double SECONDS_PER_FLOOR = 0.5;
 
     /**
-     * 关联的楼层
+     * 到达楼层后的停止时间（秒）
      */
-    private List<Floor> floors;
+    protected final static int PAUSE_SECONDS = 1;
+
+    /**
+     * 状态更新间隔时间
+     */
+    protected final static double UPDATE_DURATION_SECONDS = SECONDS_PER_FLOOR;
+
+    /**
+     * 电梯所用的调度器
+     */
+    private Scheduler scheduler;
+
+    /**
+     * 电梯内按钮的状态，是否按下
+     */
+    private final boolean[] floorButtonPressed;
 
     /**
      * 当前所在楼层
      */
-    private Floor currentFloor;
+    private int currentFloor;
 
     /**
-     * 电梯状态
+     * 电梯当前状态
      */
-    private LiftState state = LiftState.STILL;
+    private LiftState currentState;
 
     /**
-     * 输出流
+     * 当前运行时间（秒）
      */
-    private PrintStream outputStream = System.out;
+    private double currentSeconds;
 
     /**
-     * 经过的时间（秒）
+     * 下一个到达的楼层
      */
-    private double elapsedSeconds = 0;
+    private int nextDestination;
 
-    public Lift(List<Floor> floors) {
-        assert floors != null;
-        assert floors.size() != 0;
-        this.floors = floors;
-        this.currentFloor = floors.get(0);
+    /**
+     * 下一个请求
+     */
+    private Request nextRequest;
+
+    /**
+     * 信息输出流
+     */
+    private PrintStream output;
+
+    /**
+     * 停靠剩余时间
+     */
+    private double pauseRestSeconds;
+
+    /**
+     * 停靠之前的状态，用于从停靠状态恢复成向上/向下状态
+     */
+    private LiftState stateBeforeStopped;
+
+    /**
+     * @param floorSize 楼层数
+     */
+    public Lift(int floorSize, Scheduler scheduler, PrintStream output) {
+
+        /// 初始化楼层按钮
+        floorButtonPressed = new boolean[floorSize];
+
+        /// 设置初始时电梯所在楼层为 1 层
+        currentFloor = 1;
+
+        /// 设置初始状态为停止
+        currentState = LiftState.STILL;
+
+        /// 默认从 0 秒开始运行
+        currentSeconds = 0;
+
+        /// 下一个到达的楼层默认为 1
+        nextDestination = 1;
+
+        /// 默认之前的状态是停靠，这样会在没有请求时永远保持停靠状态
+        stateBeforeStopped = LiftState.STILL;
+
+        /// 设置电梯的调度器
+        this.scheduler = scheduler;
+
+        /// 设置输出流
+        this.output = output;
     }
 
-    public void runTo(Request request) {
-        if (currentFloor.getFloorNumber() == request.getToFloor())
-            state = LiftState.STILL;
-        else if (currentFloor.getFloorNumber() < request.getToFloor())
-            state = LiftState.UP;
-        else
-            state = LiftState.DOWN;
-        elapsedSeconds = request.getRequestSeconds() + Math.abs(request.getToFloor() - currentFloor.getFloorNumber()) * RUNNING_SECOND_PER_FLOOR + OPEN_CLOSE_DOOR_SECONDS;
-        outputStream.println(String.format("(%d, %s, %.1f)", request.getToFloor() == 0 ? 1 : request.getToFloor(), state, elapsedSeconds));
-        currentFloor = floors.get(request.getToFloor());
+    public boolean pressButton(int floor) {
+        if (floorButtonPressed[floor]) {
+            return false;
+        }
+        floorButtonPressed[floor] = true;
+        onButtonPressed(floor);
+        return true;
     }
 
-    public Floor getCurrentFloor() {
-        return this.currentFloor;
+    private void cancelPressedButton(int floor) {
+        if (!floorButtonPressed[floor]) {
+            return;
+        }
+        floorButtonPressed[floor] = false;
+        onPressedButtonCanceled(floor);
     }
 
-    public double getElapsedSeconds() {
-        return this.elapsedSeconds;
+    private void moveDownOneFloor() {
+        currentFloor -= 1;
+        onMoving(currentFloor);
     }
 
-    public void setOutputStream(PrintStream outputStream) {
-        this.outputStream = outputStream;
+    private void moveUpOneFloor() {
+        currentFloor += 1;
+        onMoving(currentFloor);
     }
+
+    private void setCurrentState(LiftState currentState) {
+        if (currentState == this.currentState)
+            return;
+        this.currentState = currentState;
+        onStateChanged(currentState);
+    }
+
+    protected void onPressedButtonCanceled(int floorButton) {}
+
+    protected void onMoving(int currentFloor) {}
+
+    protected void onStateChanged(LiftState currentState) {}
+
+    protected void onButtonPressed(int floor) {}
+
+    public boolean update() {
+
+        if (!scheduler.update(currentSeconds, currentState, currentFloor))
+            return false;
+
+        if (nextDestination == currentFloor) {
+            if (nextRequest != null)
+                output.println(nextRequest.toString().replace("(", "[").replace(")", "]") + " / (" + currentFloor + ", " + currentState + ", " + String.format("%.1f", currentSeconds) + ")");
+            /// 到达目标楼层，取消按钮的按下状态
+            cancelPressedButton(currentFloor);
+            setCurrentState(LiftState.STILL);
+            if (stateBeforeStopped != LiftState.STILL)
+                pauseRestSeconds = PAUSE_SECONDS;
+            if (scheduler.hasNext()) {
+                nextRequest = scheduler.next();
+                nextDestination = nextRequest.getFloor();
+            }
+        }
+        else {
+            stateBeforeStopped = currentState;
+            if (nextDestination > currentFloor)
+                setCurrentState(LiftState.UP);
+            else
+                setCurrentState(LiftState.DOWN);
+        }
+
+        switch (currentState) {
+            case UP:
+                moveUpOneFloor();
+                break;
+            case DOWN:
+                moveDownOneFloor();
+                break;
+            case STILL:
+                if (pauseRestSeconds != 0)
+                    pauseRestSeconds -= 0.5;
+                else {
+                    setCurrentState(stateBeforeStopped);
+                }
+                break;
+        }
+
+        currentSeconds += UPDATE_DURATION_SECONDS;
+
+        return true;
+    }
+
 }

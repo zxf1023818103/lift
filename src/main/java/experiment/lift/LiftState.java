@@ -1,8 +1,8 @@
 package experiment.lift;
 
 /**
- * 电梯运行状态
+ * 标识电梯运动状态为上/下/停止
  */
-public enum LiftState {
-    DOWN, UP, STILL
+enum LiftState {
+    UP, DOWN, STILL
 }

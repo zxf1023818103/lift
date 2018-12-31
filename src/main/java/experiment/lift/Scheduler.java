@@ -1,45 +1,92 @@
 package experiment.lift;
 
-/**
- * 调度器
- */
-public class Scheduler {
+import java.io.PrintStream;
+import java.util.*;
 
-    private RequestQueue queue;
+public class Scheduler implements Iterator<Request> {
+
+    private List<Request> requests;
+
+    private double currentSeconds;
+
+    private LiftState currentState;
+
+    private int currentFloor;
 
     private Lift lift;
 
-    private boolean startFromZeroSecond = false;
+    private PrintStream output;
 
-    public Scheduler(Lift lift, RequestQueue queue) {
-        assert lift != null;
-        assert queue != null;
+    public Scheduler(List<Request> requests, PrintStream output) {
+        this.requests = requests;
+        this.output = output;
+        requests.sort(Comparator.comparingInt(Request::getSendSeconds));
+    }
+
+    public void setLift(Lift lift) {
         this.lift = lift;
-        this.queue = queue;
     }
 
     /**
-     * 开始运行电梯
-     *
-     * @throws InvalidUpRequestException 当在顶楼请求上行时抛出
-     * @throws InvalidDownRequestException 当在一楼请求下行时抛出
+     * @return 当前时间是否有下一个目标楼层
      */
-    public void start() throws InvalidUpRequestException, InvalidDownRequestException {
-        while (!queue.isEmpty()) {
-            Request request = queue.poll();
-            if (request.getType() == RequestType.FLOOR_REQUEST) {
-                if (request.getDirection() == FloorRequestDirection.UP && request.getFromFloor() == 10)
-                    throw new InvalidUpRequestException();
-                else if (request.getDirection() == FloorRequestDirection.DOWN && request.getFromFloor() == 1)
-                    throw new InvalidDownRequestException();
+    @Override
+    public boolean hasNext() {
+        return !requests.isEmpty() && requests.get(0).getSendSeconds() <= currentSeconds;
+    }
+
+    /**
+     * 获取下一个目标楼层
+     * @return 下一个目标楼层
+     */
+    @Override
+    public Request next() {
+        if (hasNext()) {
+            Iterator<Request> iterator = requests.listIterator();
+            int destination = 0;
+            Request request = null;
+            loop:
+            while (iterator.hasNext()) {
+                request = iterator.next();
+                LiftState nextState = request.getLiftStateByCurrentFloor(currentFloor);
+                switch (nextState) {
+                    case DOWN:
+                        if (currentFloor > request.getFloor()) {
+                            destination = request.getFloor();
+                            iterator.remove();
+                            break loop;
+                        }
+                    case UP:
+                        if (currentFloor < request.getFloor()) {
+                            destination = request.getFloor();
+                            iterator.remove();
+                            break loop;
+                        }
+                    case STILL:
+                        destination = request.getFloor();
+                        iterator.remove();
+                        break loop;
+                }
             }
-            if (request.getRequestSeconds() >= lift.getElapsedSeconds()) {
-                if (request.getRequestSeconds() == 0)
-                    startFromZeroSecond = true;
-                if (startFromZeroSecond)
-                    lift.runTo(request);
+            if (destination == 0) {
+                return null;
             }
+            if (lift != null && !lift.pressButton(destination)) {
+                output.println("SAME[" + request + "]");
+                return null;
+            }
+            return request;
         }
+        return null;
+    }
+
+    public boolean update(double currentSeconds, LiftState currentState, int currentFloor) {
+        if (requests.isEmpty())
+            return false;
+        this.currentSeconds = currentSeconds;
+        this.currentState = currentState;
+        this.currentFloor = currentFloor;
+        return true;
     }
 
 }

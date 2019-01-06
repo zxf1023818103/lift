@@ -17,7 +17,7 @@ public class Lift {
     /**
      * 状态更新间隔时间
      */
-    protected final static double UPDATE_DURATION_SECONDS = SECONDS_PER_FLOOR;
+    protected final static double TICK_SECONDS = SECONDS_PER_FLOOR;
 
     /**
      * 电梯所用的调度器
@@ -70,7 +70,13 @@ public class Lift {
     private LiftState stateBeforeStopped;
 
     /**
+     * 楼层数
+     */
+    private int floorSize;
+
+    /**
      * @param floorSize 楼层数
+     *
      */
     public Lift(int floorSize, Scheduler scheduler, PrintStream output) {
 
@@ -92,11 +98,19 @@ public class Lift {
         /// 默认之前的状态是停靠，这样会在没有请求时永远保持停靠状态
         stateBeforeStopped = LiftState.STILL;
 
+        /// 设置楼层数
+        this.floorSize = floorSize;
+
         /// 设置电梯的调度器
         this.scheduler = scheduler;
 
         /// 设置输出流
         this.output = output;
+
+    }
+
+    public int getFloorSize() {
+        return floorSize;
     }
 
     public boolean pressButton(int floor) {
@@ -133,13 +147,19 @@ public class Lift {
         onStateChanged(currentState);
     }
 
-    protected void onPressedButtonCanceled(int floorButton) {}
+    protected void onPressedButtonCanceled(int floor) {
+        scheduler.onPeopleNumberDecreased(floor, currentSeconds);
+    }
 
     protected void onMoving(int currentFloor) {}
 
     protected void onStateChanged(LiftState currentState) {}
 
-    protected void onButtonPressed(int floor) {}
+    protected void onButtonPressed(int floor) {
+        /// 以按钮的按下作为人数增加的标志
+        /// 通知调度器人数改变
+        scheduler.onPeopleNumberIncreased(floor, currentSeconds);
+    }
 
     public boolean update() {
 
@@ -183,7 +203,7 @@ public class Lift {
                 break;
         }
 
-        currentSeconds += UPDATE_DURATION_SECONDS;
+        currentSeconds += TICK_SECONDS;
 
         return true;
     }

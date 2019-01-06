@@ -44,7 +44,7 @@ public class Main {
             }
         }
 
-        Scheduler scheduler = new Scheduler(requests, output);
+        Scheduler scheduler = new Scheduler(requests, output, 13);
 
         Lift lift = new Lift(11, scheduler, output);
 
@@ -55,6 +55,14 @@ public class Main {
                 break;
         }
 
+        double averageWaitingSeconds = 0;
+        output.println("Leaving Seconds:");
+        for (Request request : requests) {
+            averageWaitingSeconds = request.getWaitingSeconds();
+            output.println(request + ": " + request.getCompleteSeconds());
+        }
+        averageWaitingSeconds /= requests.size();
+        output.println("Average Waiting Seconds: " + averageWaitingSeconds);
     }
 
 }

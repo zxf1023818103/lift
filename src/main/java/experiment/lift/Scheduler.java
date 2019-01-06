@@ -1,11 +1,15 @@
 package experiment.lift;
 
+import java.awt.*;
 import java.io.PrintStream;
 import java.util.*;
+import java.util.List;
 
 public class Scheduler implements Iterator<Request> {
 
     private List<Request> requests;
+
+    private List<Request> backupRequests = new ArrayList<>();
 
     private double currentSeconds;
 
@@ -17,14 +21,33 @@ public class Scheduler implements Iterator<Request> {
 
     private PrintStream output;
 
-    public Scheduler(List<Request> requests, PrintStream output) {
+    private int limit;
+
+    private int currentPeopleNumber;
+
+    // 记录重复按下按钮的次数
+    private int[] buttonPressingNumber;
+
+    private HashMap<Integer, ArrayList<Request>> floorRequestsMap = new HashMap<>();
+
+    public Scheduler(List<Request> requests, PrintStream output, int limit) {
         this.requests = requests;
         this.output = output;
+        this.limit = limit;
+        this.currentPeopleNumber = 0;
         requests.sort(Comparator.comparingInt(Request::getSendSeconds));
+        requests.forEach(request -> {
+            int floor = request.getFloor();
+            ArrayList<Request> requests1 = floorRequestsMap.getOrDefault(floor, new ArrayList<>());
+            requests1.add(request);
+            backupRequests.add(request);
+            floorRequestsMap.put(floor, requests1);
+        });
     }
 
     public void setLift(Lift lift) {
         this.lift = lift;
+        this.buttonPressingNumber = new int[lift.getFloorSize()];
     }
 
     /**
@@ -32,17 +55,18 @@ public class Scheduler implements Iterator<Request> {
      */
     @Override
     public boolean hasNext() {
-        return !requests.isEmpty() && requests.get(0).getSendSeconds() <= currentSeconds;
+        return !backupRequests.isEmpty() && backupRequests.get(0).getSendSeconds() <= currentSeconds && currentPeopleNumber < limit;
     }
 
     /**
      * 获取下一个目标楼层
+     *
      * @return 下一个目标楼层
      */
     @Override
     public Request next() {
         if (hasNext()) {
-            Iterator<Request> iterator = requests.listIterator();
+            Iterator<Request> iterator = backupRequests.listIterator();
             int destination = 0;
             Request request = null;
             loop:
@@ -72,6 +96,7 @@ public class Scheduler implements Iterator<Request> {
                 return null;
             }
             if (lift != null && !lift.pressButton(destination)) {
+                buttonPressingNumber[destination]++;
                 output.println("SAME[" + request + "]");
                 return null;
             }
@@ -81,12 +106,29 @@ public class Scheduler implements Iterator<Request> {
     }
 
     public boolean update(double currentSeconds, LiftState currentState, int currentFloor) {
-        if (requests.isEmpty())
+        if (backupRequests.isEmpty())
             return false;
         this.currentSeconds = currentSeconds;
         this.currentState = currentState;
         this.currentFloor = currentFloor;
         return true;
+    }
+
+    public void onPeopleNumberIncreased(int floor, double currentSeconds) {
+        if (currentPeopleNumber == limit) {
+            // 超载发出警报
+            Toolkit.getDefaultToolkit().beep();
+        } else {
+            currentPeopleNumber++;
+            buttonPressingNumber[floor]++;
+            floorRequestsMap.getOrDefault(floor, new ArrayList<>()).forEach(request -> request.setStartSeconds(currentSeconds));
+        }
+    }
+
+    public void onPeopleNumberDecreased(int floor, double currentSeconds) {
+        floorRequestsMap.getOrDefault(floor, new ArrayList<>()).forEach(request -> request.setCompleteSeconds(currentSeconds));
+        currentPeopleNumber--;
+        buttonPressingNumber[floor] = 0;
     }
 
 }

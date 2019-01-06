@@ -1,8 +1,12 @@
 package experiment.lift;
 
-public abstract class Request {
+public abstract class Request implements Cloneable {
 
     private int sendingSeconds;
+
+    private double completeSeconds;
+
+    private double startSeconds;
 
     private int floor;
 
@@ -20,6 +24,34 @@ public abstract class Request {
 
     public void setFloor(int floor) {
         this.floor = floor;
+    }
+
+    public double getWaitingSeconds() {
+        return startSeconds - sendingSeconds;
+    }
+
+    public int getSendingSeconds() {
+        return sendingSeconds;
+    }
+
+    public void setSendingSeconds(int sendingSeconds) {
+        this.sendingSeconds = sendingSeconds;
+    }
+
+    public double getCompleteSeconds() {
+        return completeSeconds;
+    }
+
+    public void setCompleteSeconds(double completeSeconds) {
+        this.completeSeconds = completeSeconds;
+    }
+
+    public double getStartSeconds() {
+        return startSeconds;
+    }
+
+    public void setStartSeconds(double startSeconds) {
+        this.startSeconds = startSeconds;
     }
 
     public LiftState getLiftStateByCurrentFloor(int currentFloor) {

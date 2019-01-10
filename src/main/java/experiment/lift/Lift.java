@@ -1,5 +1,9 @@
 package experiment.lift;
 
+import experiment.lift.gui.controller.LiftController;
+import javafx.animation.Timeline;
+import javafx.application.Platform;
+
 import java.io.PrintStream;
 
 public class Lift {
@@ -75,10 +79,22 @@ public class Lift {
     private int floorSize;
 
     /**
-     * @param floorSize 楼层数
+     * 开关门动画
+     */
+    private Timeline openDoorAnimation;
+
+    /**
      *
      */
-    public Lift(int floorSize, Scheduler scheduler, PrintStream output) {
+    private LiftController liftController;
+
+    /**
+     * @param floorSize 楼层数
+     * @param openDoorAnimation
+     * @param liftController
+     *
+     */
+    public Lift(int floorSize, Scheduler scheduler, PrintStream output, Timeline openDoorAnimation, LiftController liftController) {
 
         /// 初始化楼层按钮
         floorButtonPressed = new boolean[floorSize];
@@ -107,6 +123,11 @@ public class Lift {
         /// 设置输出流
         this.output = output;
 
+        /// 设置开关门动画
+        this.openDoorAnimation = openDoorAnimation;
+
+        ///
+        this.liftController = liftController;
     }
 
     public int getFloorSize() {
@@ -149,6 +170,8 @@ public class Lift {
 
     protected void onPressedButtonCanceled(int floor) {
         scheduler.onPeopleNumberDecreased(floor, currentSeconds);
+        liftController.paused = true;
+        Platform.runLater(() -> openDoorAnimation.play());
     }
 
     protected void onMoving(int currentFloor) {}

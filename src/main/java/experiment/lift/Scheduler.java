@@ -1,5 +1,8 @@
 package experiment.lift;
 
+import experiment.lift.gui.controller.LiftController;
+import javafx.application.Platform;
+
 import java.awt.*;
 import java.io.PrintStream;
 import java.util.*;
@@ -28,13 +31,16 @@ public class Scheduler implements Iterator<Request> {
     // 记录重复按下按钮的次数
     private int[] buttonPressingNumber;
 
+    private LiftController liftController;
+
     private HashMap<Integer, ArrayList<Request>> floorRequestsMap = new HashMap<>();
 
-    public Scheduler(List<Request> requests, PrintStream output, int limit) {
+    public Scheduler(List<Request> requests, PrintStream output, int limit, LiftController liftController) {
         this.requests = requests;
         this.output = output;
         this.limit = limit;
         this.currentPeopleNumber = 0;
+        this.liftController = liftController;
         requests.sort(Comparator.comparingInt(Request::getSendSeconds));
         requests.forEach(request -> {
             int floor = request.getFloor();
@@ -111,10 +117,13 @@ public class Scheduler implements Iterator<Request> {
         this.currentSeconds = currentSeconds;
         this.currentState = currentState;
         this.currentFloor = currentFloor;
+        liftController.flicker(currentState);
+        Platform.runLater(() -> liftController.floorLabel.setText(Integer.toString(currentFloor)));
         return true;
     }
 
     public void onPeopleNumberIncreased(int floor, double currentSeconds) {
+        Platform.runLater(() -> liftController.currentPeopleNumberLabel.setText(Integer.toString(currentPeopleNumber)));
         if (currentPeopleNumber == limit) {
             // 超载发出警报
             Toolkit.getDefaultToolkit().beep();
@@ -126,6 +135,7 @@ public class Scheduler implements Iterator<Request> {
     }
 
     public void onPeopleNumberDecreased(int floor, double currentSeconds) {
+        Platform.runLater(() -> liftController.currentPeopleNumberLabel.setText(Integer.toString(currentPeopleNumber)));
         floorRequestsMap.getOrDefault(floor, new ArrayList<>()).forEach(request -> request.setCompleteSeconds(currentSeconds));
         currentPeopleNumber--;
         buttonPressingNumber[floor] = 0;
